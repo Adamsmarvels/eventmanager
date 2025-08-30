@@ -1,69 +1,64 @@
 from flask import Flask, render_template, request, redirect, url_for
-import sqlite3
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///event_db.sqlite3'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 
-# Initialize database (with tickets)
-conn = sqlite3.connect("events.db")
-c = conn.cursor()
-c.execute("""CREATE TABLE IF NOT EXISTS events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT,
-                description TEXT,
-                date TEXT,
-                time TEXT,
-                tickets INTEGER DEFAULT 0
-            )""")
-conn.commit()
-conn.close()
+# Database models
+class Event(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    date = db.Column(db.String(50), nullable=False)
+    location = db.Column(db.String(100), nullable=False)
 
-@app.route("/")
+class Registration(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), nullable=False)
+    event_id = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False)
+
+# Home page
+@app.route('/')
 def home():
-    conn = sqlite3.connect("events.db")
-    c = conn.cursor()
-    c.execute("SELECT * FROM events")
-    events = c.fetchall()
-    conn.close()
-    return render_template("home.html", events=events)
+    events = Event.query.all()
+    return render_template('home.html', events=events)
 
-@app.route("/create", methods=["GET", "POST"])
+# Create event
+@app.route('/create', methods=['GET', 'POST'])
 def create():
-    if request.method == "POST":
-        title = request.form["title"]
-        description = request.form["description"]
-        date = request.form["date"]
-        time = request.form["time"]
+    if request.method == 'POST':
+        name = request.form['name']
+        date = request.form['date']
+        location = request.form['location']
+        new_event = Event(name=name, date=date, location=location)
+        db.session.add(new_event)
+        db.session.commit()
+        return redirect(url_for('home'))
+    return render_template('create.html')
 
-        conn = sqlite3.connect("events.db")
-        c = conn.cursor()
-        c.execute("INSERT INTO events (title, description, date, time) VALUES (?, ?, ?, ?)",
-                  (title, description, date, time))
-        conn.commit()
-        conn.close()
+# Event details / register
+@app.route('/details/<int:event_id>', methods=['GET', 'POST'])
+def details(event_id):
+    event = Event.query.get_or_404(event_id)
+    if request.method == 'POST':
+        name = request.form['name']
+        email = request.form['email']
+        registration = Registration(name=name, email=email, event_id=event.id)
+        db.session.add(registration)
+        db.session.commit()
+        return redirect(url_for('home'))
+    return render_template('details.html', event=event)
 
-        return redirect(url_for("home"))
-    return render_template("create.html")
+# Admin page
+@app.route('/admin')
+def admin():
+    events = Event.query.all()
+    registrations = Registration.query.all()
+    return render_template('admin.html', events=events, registrations=registrations)
 
-@app.route("/event/<int:event_id>")
-def event_details(event_id):
-    conn = sqlite3.connect("events.db")
-    c = conn.cursor()
-    c.execute("SELECT * FROM events WHERE id = ?", (event_id,))
-    event = c.fetchone()
-    conn.close()
-    if event:
-        return render_template("details.html", event=event)
-    else:
-        return "<h1>Event not found</h1>", 404
-
-@app.route("/register/<int:event_id>")
-def register(event_id):
-    conn = sqlite3.connect("events.db")
-    c = conn.cursor()
-    c.execute("UPDATE events SET tickets = tickets + 1 WHERE id = ?", (event_id,))
-    conn.commit()
-    conn.close()
-    return redirect(f"/event/{event_id}")
-
-if __name__ == "__main__":
+# Run the app
+if __name__ == '__main__':
+    db.create_all()
     app.run(debug=True)
