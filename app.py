@@ -1,7 +1,14 @@
 from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
+import os
 
 app = Flask(__name__)
+
+# Ensure instance folder exists
+if not os.path.exists('instance'):
+    os.makedirs('instance')
+
+# SQLite database inside the instance folder
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/event_db.sqlite3'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
@@ -60,5 +67,6 @@ def admin():
 
 # Run the app
 if __name__ == '__main__':
-    db.create_all()
+    db.create_all()  # Create tables if not exist
     app.run(debug=True)
+
