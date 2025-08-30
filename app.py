@@ -1,72 +1,81 @@
 from flask import Flask, render_template, request, redirect, url_for
-from flask_sqlalchemy import SQLAlchemy
+from supabase import create_client
 import os
 
 app = Flask(__name__)
 
-# Ensure instance folder exists
-if not os.path.exists('instance'):
-    os.makedirs('instance')
+# ------------------------------
+# Supabase connection
+# ------------------------------
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# SQLite database inside the instance folder
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/event_db.sqlite3'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
 
-# Database models
-class Event(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    date = db.Column(db.String(50), nullable=False)
-    location = db.Column(db.String(100), nullable=False)
+# ------------------------------
+# Routes
+# ------------------------------
 
-class Registration(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(100), nullable=False)
-    event_id = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False)
-
-# Home page
-@app.route('/')
+# Home page - list all events
+@app.route("/")
 def home():
-    events = Event.query.all()
-    return render_template('home.html', events=events)
+    events = supabase.table("events").select("*").execute().data
+    return render_template("home.html", events=events)
 
-# Create event
-@app.route('/create', methods=['GET', 'POST'])
+
+# Create a new event
+@app.route("/create", methods=["GET", "POST"])
 def create():
-    if request.method == 'POST':
-        name = request.form['name']
-        date = request.form['date']
-        location = request.form['location']
-        new_event = Event(name=name, date=date, location=location)
-        db.session.add(new_event)
-        db.session.commit()
-        return redirect(url_for('home'))
-    return render_template('create.html')
+    if request.method == "POST":
+        title = request.form["title"]
+        description = request.form["description"]
+        date = request.form["date"]
+        time = request.form["time"]
 
-# Event details / register
-@app.route('/details/<int:event_id>', methods=['GET', 'POST'])
+        supabase.table("events").insert({
+            "name": title,
+            "description": description,
+            "date": date,
+            "time": time
+        }).execute()
+
+        return redirect(url_for("home"))
+    return render_template("create.html")
+
+
+# Event details + register
+@app.route("/details/<int:event_id>", methods=["GET", "POST"])
 def details(event_id):
-    event = Event.query.get_or_404(event_id)
-    if request.method == 'POST':
-        name = request.form['name']
-        email = request.form['email']
-        registration = Registration(name=name, email=email, event_id=event.id)
-        db.session.add(registration)
-        db.session.commit()
-        return redirect(url_for('home'))
-    return render_template('details.html', event=event)
+    # Get event details
+    event = supabase.table("events").select("*").eq("id", event_id).single().execute().data
 
-# Admin page
-@app.route('/admin')
+    # Count registrations
+    reg_data = supabase.table("registrations").select("*").eq("event_id", event_id).execute().data
+    num_tickets = len(reg_data)
+
+    if request.method == "POST":
+        name = request.form["name"]
+        email = request.form["email"]
+        supabase.table("registrations").insert({
+            "name": name,
+            "email": email,
+            "event_id": event_id
+        }).execute()
+        return redirect(url_for("home"))
+
+    return render_template("details.html", event=event, num_tickets=num_tickets)
+
+
+# Admin page - list all events and registrations
+@app.route("/admin")
 def admin():
-    events = Event.query.all()
-    registrations = Registration.query.all()
-    return render_template('admin.html', events=events, registrations=registrations)
+    events = supabase.table("events").select("*").execute().data
+    registrations = supabase.table("registrations").select("*").execute().data
+    return render_template("admin.html", events=events, registrations=registrations)
 
-# Run the app
-if __name__ == '__main__':
-    db.create_all()  # Create tables if not exist
+
+# ------------------------------
+# Run locally
+# ------------------------------
+if __name__ == "__main__":
     app.run(debug=True)
-
