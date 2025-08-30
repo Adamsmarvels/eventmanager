@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Panel</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #4CAF50; color: white; }
+        h2 { color: #333; }
+    </style>
+</head>
+<body>
+    <h2>All Events</h2>
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Event Name</th>
+            <th>Date</th>
+            <th>Location</th>
+        </tr>
+        {% for event in events %}
+        <tr>
+            <td>{{ event.id }}</td>
+            <td>{{ event.name }}</td>
+            <td>{{ event.date }}</td>
+            <td>{{ event.location }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>All Registrations</h2>
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Event ID</th>
+        </tr>
+        {% for reg in registrations %}
+        <tr>
+            <td>{{ reg.id }}</td>
+            <td>{{ reg.name }}</td>
+            <td>{{ reg.email }}</td>
+            <td>{{ reg.event_id }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
